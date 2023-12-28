@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+
+    <style>
+        .motor {
+            display: inline-block;
+            transition: background-color 0.5s ease;
+            width: 100px;
+            height: 100px;
+            background-color: red;
+            border-radius: 50px;
+            line-height: 100px;
+            font-size: 40px;
+            text-align: center;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+
+<button>connect</button>
+
+<div id="app">
+    <table>
+        <tr>
+            <td>
+                <motor v-bind:angle="motors[4].angle" v-bind:color="motors[4].color"></motor>
+            </td>
+            <td></td>
+            <td>
+                <motor v-bind:angle="motors[2].angle" v-bind:color="motors[2].color"></motor>
+            </td>
+        </tr>
+        <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>
+                <motor v-bind:angle="motors[3].angle" v-bind:color="motors[3].color"></motor>
+            </td>
+            <td></td>
+            <td>
+                <motor v-bind:angle="motors[1].angle" v-bind:color="motors[1].color"></motor>
+            </td>
+        </tr>
+    </table>
+</div>
+<script>
+    Vue.component('motor', {
+        props: ['angle', 'color'],
+        template: '<div class="motor" :style="{ transform: \'rotate(\'+ angle+\'deg)\', backgroundColor: color}"><div class="arrow" >➡️</div></div>'
+    })
+
+    var vm = new Vue({
+        el: '#app',
+        data: {
+            message: 'Hello Vue!',
+            motors: {
+                1: {
+                    color: 'white',
+                    angle: 0
+                },
+                2: {
+                    color: 'white',
+                    angle: 0
+                },
+                3: {
+                    color: 'white',
+                    angle: 0
+                },
+                4: {
+                    color: 'white',
+                    angle: 0
+                },
+            }
+        },
+        methods: {
+            updateMotor: function (motornumber, direction, angle) {
+                let directions = ['stop', 'ccw', 'cw'];
+
+                this.motors[motornumber] = {
+                    color: this.getColor(motornumber, directions[direction]),
+                    angle: angle,
+                };
+            },
+            getColor: function (motornumber, direction) {
+
+                let colors = {
+                    1: {
+                        stop: 'white',
+                        ccw: 'green',
+                        cw: 'red'
+                    },
+                    2: {
+                        stop: 'white',
+                        ccw: 'red',
+                        cw: 'green'
+                    },
+                    3: {
+                        stop: 'white',
+                        ccw: 'red',
+                        cw: 'green'
+                    },
+                    4: {
+                        stop: 'white',
+                        ccw: 'green',
+                        cw: 'red'
+                    },
+
+                };
+                return colors[motornumber][direction];
+            }
+        }
+    })
+
+    class LineBreakTransformer {
+        constructor() {
+            this.container = '';
+        }
+
+        transform(chunk, controller) {
+            this.container += chunk;
+            const lines = this.container.split('\r\n');
+            this.container = lines.pop();
+            lines.forEach(line => controller.enqueue(line));
+        }
+
+        flush(controller) {
+            controller.enqueue(this.container);
+        }
+    }
+
+
+    let dataMap = {};
+
+    document.querySelector('button').addEventListener('click', async () => {
+        // Prompt user to select any serial port.
+        const port = await navigator.serial.requestPort();
+        await port.open({baudRate: 115200});
+        const decoder = new TextDecoder();
+        const reader = port.readable.getReader();
+        while (port.readable) {
+            const {value, done} = await reader.read();
+            let motors = decoder.decode(value).split(' ');
+            motors.map((motor) => {
+                let motorMeta = motor.split(',');
+                if (motorMeta.length === 3 && motor.length === 8) {
+                    const input = parseInt(motorMeta[2]);
+                    // Specify the boundaries of the input and output ranges
+                    const minInput = 0;
+                    const maxInput = 4096;
+                    const minOutput = 0;
+                    const maxOutput = 360;
+                    const output = minOutput + ((input - minInput) / (maxInput - minInput)) * (maxOutput - minOutput);
+                    vm.updateMotor(motorMeta[0], motorMeta[1], output * -1);
+                }
+            });
+        }
+    });
+</script>
+
+</body>
+</html>
