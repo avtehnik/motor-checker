@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+
+    <style>
+
+        #app {
+            width: 640px;
+            height: 480px;
+            background-color: azure;
+        }
+        #app .center {
+            position: absolute;
+            text-align: center;
+            width: 640px;
+            height: 480px;
+            line-height: 480px;
+        }
+    </style>
+</head>
+<body>
+
+
+<div id="app">
+<div class="center">1</div>
+</div>
+<button>connect</button>
+<script>
+    let port;
+    let updateHandler;
+    let size = 10
+    let sendSize = 1
+    let x = 0;
+    let y = 0;
+    const textEncoder = new TextEncoder();
+    const element = document.querySelector("div#app");
+
+    send = (x, y, size) => {
+        if (port) {
+            let w = 1
+            let h = 1
+            const writer = port.writable.getWriter();
+            let data = JSON.stringify({x, y, w, h});
+            writer.write(textEncoder.encode(data+"\r"));
+            writer.releaseLock();
+        }
+    }
+
+    element.addEventListener("wheel", (event) => {
+        size += event.deltaY * -1;
+        if (size < 10) {
+            size = 10
+        }
+        if (size > 60) {
+            size = 60
+        }
+
+        sendSize = parseInt(size / 10)
+    });
+
+
+    document.querySelector('#app').addEventListener('mousemove', async (e) => {
+        const width = 30;
+        const height = 16;
+        if (port) {
+             // x = parseInt((width / 2) + (e.clientX / 10));
+             // y = parseInt((height / 2) - (e.clientY / 10));
+             x = parseInt(e.clientX );
+             y = parseInt(e.clientY );
+            // updateHandler = setTimeout(async () => {
+            //     console.log('mousemove', x, y, parseInt(size / 10));
+            //     send(x, y, parseInt(size / 10));
+            // }, 1);
+        }
+    })
+
+
+    document.querySelector('button').addEventListener('click', async () => {
+        // Prompt user to select any serial port.
+        port = await navigator.serial.requestPort();
+        await port.open({baudRate: 115200});
+        const decoder = new TextDecoder();
+        const reader = port.readable.getReader();
+
+        while (port.readable) {
+            const {value, done} = await reader.read();
+            let motors = decoder.decode(value).split(' ');
+            motors.map((motor) => {
+                let motorMeta = motor.split(',');
+                if (motorMeta.length === 3 && motor.length === 8) {
+                    const input = parseInt(motorMeta[2]);
+                    // Specify the boundaries of the input and output ranges
+                    const minInput = 0;
+                    const maxInput = 4096;
+                    const minOutput = 0;
+                    const maxOutput = 360;
+                    const output = minOutput + ((input - minInput) / (maxInput - minInput)) * (maxOutput - minOutput);
+                    vm.updateMotor(motorMeta[0], motorMeta[1], output * -1);
+                }
+            });
+        }
+    });
+
+    updateHandler = setInterval(async () => {
+//        console.log('move', x, y, sendSize);
+        send(x, y, sendSize);
+    }, 50);
+
+
+</script>
+
+</body>
+</html>
